@@ -77,7 +77,7 @@ module.exports = {
         rules: [
             { test: /\.css$/, loader: "style-loader!css-loader" }, // CSS
             { test: /\.(png|jpg)$/, loader: 'url-loader' }, // images
-            { test: /\.ts$/, loader: 'ts-loader'} // TypeScript
+            { test: /\.ts$/, use: [{ loader: 'ts-loader', options: { transpileOnly: true } }] } // TypeScript
         ]
     },
 

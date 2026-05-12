@@ -20,6 +20,7 @@ import * as ace from './lib/ace/src-min-noconflict/ace'
 require('./lib/jquery-3.0.0.min.js');
 require('./lib/jquery.qtip.js');
 require('../css/jquery.qtip.css');
+require('../css/visualize-shell.css');
 
 // for TypeScript
 declare var initCodeopticon: any; // FIX later when porting Codeopticon
@@ -168,7 +169,7 @@ export class OptFrontendWithTestcases extends OptFrontendSharedSessions {
     };
 
     this.executeCodeAndRunCallback(codeToExec,
-                                   $('#pythonVersionSelector').val(),
+                                   this.getExecutionLanguage(),
                                    backendOptionsObj, frontendOptionsObj,
                                    runTestCaseCallback.bind(this));
   }
@@ -187,7 +188,7 @@ export class OptFrontendWithTestcases extends OptFrontendSharedSessions {
     (frontendOptionsObj as any).jumpToEnd = true;
 
     this.executeCodeAndCreateViz(codeToExec,
-                                 $('#pythonVersionSelector').val(),
+                                 this.getExecutionLanguage(),
                                  backendOptionsObj, frontendOptionsObj,
                                  'pyOutputPane');
     this.optTests.doneRunningTest(); // this will run before the callback in executeCodeAndCreateViz, but oh wells

@@ -1,62 +1,96 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Python Tutor code visualizer: Visualize code in Python, JavaScript, C, C++, and Java</title>
+    <script type="text/javascript" src="build/visualize.bundle.js" charset="utf-8"></script>
+  </head>
+  <body class="app-mode-edit">
+    <header class="pt-site-header">
+      <div class="pt-site-header__inner">
+        <nav class="pt-site-nav pt-site-nav--primary" aria-label="Tutors">
+          <a class="pt-brand" href="visualize.html">Python Tutor</a>
+          <a href="visualize.html#py=java">Java Tutor</a>
+          <a href="visualize.html#py=c">C Tutor</a>
+          <a href="visualize.html#py=cpp">C++ Tutor</a>
+          <a href="visualize.html#py=js">JavaScript Tutor</a>
+        </nav>
+      </div>
+    </header>
 
-<!--
-  Python Tutor: https://github.com/pgbovine/OnlinePythonTutor/
-  Copyright (C) Philip Guo (philip@pgbovine.net)
-  LICENSE: https://github.com/pgbovine/OnlinePythonTutor/blob/master/LICENSE.txt
--->
+    <main class="pt-page">
+      <section class="pt-hero">
+        <h1>Visualize code execution for Python, Java, C, C++, and JavaScript</h1>
+        <p class="pt-tagline">
+          Step through code one instruction at a time using the existing OnlinePythonTutor visualizer core.
+        </p>
+        <div id="executionStatus" class="pt-running-status" aria-live="polite">
+          Please wait ... your code is running (up to 10 seconds)
+        </div>
+      </section>
 
-<head>
-  <title>Visualize Python, Java, JavaScript, C, C++, Ruby code execution</title>
+      <section id="pyInputPane" class="pt-editor-shell">
+        <div class="pt-toolbar">
+          <div class="pt-toolbar__left">
+            <label for="pythonVersionSelector">Write code in</label>
+            <select id="pythonVersionSelector">
+              <option value="3" selected>Python 3.11</option>
+              <option value="java">Java</option>
+              <option value="c">C (C17 + GNU extensions)</option>
+              <option value="cpp">C++ (C++20 + GNU extensions)</option>
+              <option value="js">JavaScript (ES6)</option>
+              <option value="2">Python 2.7 [unsupported]</option>
+            </select>
+          </div>
 
-  <meta http-equiv="Content-type" content="text/html; charset=UTF-8"/>
-  <script type="text/javascript" src="build/visualize.bundle.js?ef8faad903" charset="utf-8"></script>
+          <div class="pt-hidden-controls" aria-hidden="true">
+            <select id="cumulativeModeSelector">
+              <option value=""></option>
+              <option value="true">true</option>
+            </select>
+            <select id="heapPrimitivesSelector">
+              <option value=""></option>
+              <option value="true">true</option>
+            </select>
+            <select id="textualMemoryLabelsSelector">
+              <option value=""></option>
+              <option value="true">true</option>
+            </select>
+          </div>
+        </div>
 
-</head>
+        <div id="javaOptionsPane" class="pt-java-options" style="display: none;"></div>
+        <div id="codeInputPane" class="pt-code-pane"></div>
+        <div id="frontendErrorOutput" class="pt-error-output" aria-live="polite"></div>
 
-<body>
-<div class="s4"></div>
+        <div class="pt-action-row">
+          <button id="executeBtn" class="bigBtn pt-primary-btn" type="button">
+            Visualize Execution
+          </button>
+          <button id="liveModeBtn" class="bigBtn pt-secondary-btn" type="button" style="display: none !important;">
+            Live Programming Mode
+          </button>
+        </div>
 
-<div class="title-container">
-  <h3 class="eyebrow">Visualize your Algorithms</h3>
-  <h1 class="dashboard-title">Pathrise Python Code Visualizer</h1>
-</div>
+        <div id="embedLinkDiv" class="pt-share-pane" style="display: none;">
+          <input id="urlOutput" type="text" readonly />
+          <input id="urlOutputShortened" type="text" readonly />
+          <textarea id="embedCodeOutput" rows="4" readonly></textarea>
+        </div>
+      </section>
 
-<div id="pyInputPane">
+      <section id="pyOutputPane" class="pt-output-shell"></section>
 
-<div id="codeInputWarnings">Write code in
+      <section class="pt-quick-links">
+        <span>Quick links:</span>
+        <a href="#exampleSnippets">Example code</a>
+        <a href="#footer">Docs / FAQ</a>
+      </section>
 
-  <select id="pythonVersionSelector">
-    <option value="3" selected>Python 3.6</option>
-    <!-- <option value="2">Python 2.7</option>
-    <option value="py3anaconda">Python 3.6 with Anaconda (experimental)</option>
-    <option value="java">Java 8</option>
-    <option value="c">C (gcc 4.8, C11)</option>
-    <option value="cpp">C++ (gcc 4.8, C++11)</option>
-    <option value="js">JavaScript ES6</option>
-    <option value="ts">TypeScript 1.4</option>
-    <option value="ruby">Ruby 2.2</option> -->
-  </select>
-
-</div>
-
-<div id="codeInputPane"></div>
-<div id="frontendErrorOutput"></div>
-
-<p>
-<button id="executeBtn" class="bigBtn" type="button">Visualize Execution</button>
-<!-- <button style="margin-left: 20px;" id="liveModeBtn" class="bigBtn" type="button">Live Programming Mode</button> -->
-</p>
-
-
-</div>
-
-<!-- <div id="output-container"> -->
-<div id="pyOutputPane"></div>
-<!-- </div> -->
-
-<div id="chat_div"></div>
-
-</body>
+      <section id="exampleSnippets" class="pt-example-shell"></section>
+      <footer id="footer" class="pt-footer"></footer>
+      <div id="chat_div"></div>
+    </main>
+  </body>
 </html>

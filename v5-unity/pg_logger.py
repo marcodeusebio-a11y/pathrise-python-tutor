@@ -164,25 +164,18 @@ else:
 
 
 # whitelist of module imports
-ALLOWED_STDLIB_MODULE_IMPORTS = ('math', 'random', 'time', 'datetime',
-                          'functools', 'itertools', 'operator', 'string',
-                          'collections', 're', 'json',
-                          'heapq', 'bisect', 'copy', 'hashlib', 'typing',
-                          # the above modules were first added in 2012-09
-                          # and then incrementally appended to up until
-                          # 2016-ish (see git blame logs)
-
-                          # added these additional ones on 2018-06-15
-                          # after seeing usage logs of what users tried
-                          # importing a lot but we didn't support yet
-                          # (ignoring imports that heavily deal with
-                          # filesystem, networking, or 3rd-party libs)
-                          '__future__', 'cmath', 'decimal', 'fractions',
-                          'pprint', 'calendar', 'pickle',
-                          'types', 'array',
-                          'locale', 'abc',
-                          'doctest', 'unittest',
-                          )
+ALLOWED_STDLIB_MODULE_IMPORTS = (
+    'math', 'random', 'time', 'datetime',
+    'functools', 'itertools', 'operator', 'string',
+    'collections', 're', 'json',
+    'heapq', 'bisect', 'copy', 'hashlib', 'typing',
+    '__future__', 'cmath', 'decimal', 'fractions',
+    'pprint', 'calendar', 'pickle',
+    'types', 'array',
+    'locale', 'abc',
+    'doctest', 'unittest',
+    'sys',
+)
 
 # allow users to import but don't explicitly import it since it's
 # already been done above
@@ -209,7 +202,7 @@ def __restricted_import__(*args):
     #
     # unload it so that if someone attempts to reload it, then it has to be
     # loaded from the filesystem, which is (supposedly!) blocked by setrlimit
-    for mod in ('os', 'sys', 'posix', 'gc'):
+    for mod in ('os', 'posix', 'gc'):
       if hasattr(imported_mod, mod):
         delattr(imported_mod, mod)
 
