@@ -435,7 +435,21 @@ export abstract class AbstractBaseFrontend {
       }
 
       // everything below here is an ajax (async) call to the server ...
-      if (jsonp_endpoint) {
+      const isLocalhost = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+    if (isLocalhost && (pyState === 'c' || pyState === 'cpp')) {
+      $.get(backendScript, {
+        user_script: codeToExec,
+        raw_input_json: this.rawInputLst.length > 0 ? JSON.stringify(this.rawInputLst) : '',
+        options_json: JSON.stringify(backendOptionsObj),
+        user_uuid: this.userUUID,
+        session_uuid: this.sessionUUID,
+        diffs_json: deltaObjStringified
+      }, callbackWrapper, "json");
+      return;
+    }
+
+    if (jsonp_endpoint) {
         assert (pyState !== '2' && pyState !== '3');
 
         // 2018-08-19: this is an uncommon use case (only used for https iframe embedding)
