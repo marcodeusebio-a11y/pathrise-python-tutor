@@ -4,9 +4,27 @@ set -e
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 URL="http://localhost:5000/visualize.html"
 
-lsof -ti tcp:5000 | xargs kill -9 2>/dev/null || true
-lsof -ti tcp:3000 | xargs kill -9 2>/dev/null || true
-lsof -ti tcp:80 | xargs kill -9 2>/dev/null || true
+stop_server_on_port() {
+  PORT="$1"
+
+  OLD_SERVER_PIDS=$(lsof -nP -tiTCP:$PORT -sTCP:LISTEN || true)
+
+  if [ -n "$OLD_SERVER_PIDS" ]; then
+    echo "Stopping old server on port $PORT..."
+    echo "$OLD_SERVER_PIDS" | xargs kill
+    sleep 1
+  fi
+
+  OLD_SERVER_PIDS=$(lsof -nP -tiTCP:$PORT -sTCP:LISTEN || true)
+
+  if [ -n "$OLD_SERVER_PIDS" ]; then
+    echo "Force stopping old server on port $PORT..."
+    echo "$OLD_SERVER_PIDS" | xargs kill -9
+  fi
+}
+
+stop_server_on_port 5000
+stop_server_on_port 3000
 
 if ! docker info >/dev/null 2>&1; then
   open -a Docker || true
