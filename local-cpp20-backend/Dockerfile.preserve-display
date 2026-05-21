@@ -16,7 +16,115 @@ def split_names(names):
     return [name.strip() for name in names.split(',') if name.strip()]
 
 
-def rewrite_range_for_structured_bindings(code):
+def char_literal(ch):
+    if ch == "'":
+        return "\\'"
+    if ch == "\\":
+        return "\\\\"
+    if ch == "\n":
+        return "\\n"
+    if ch == "\t":
+        return "\\t"
+    return ch
+
+
+def rewrite_simple_string_literals(code):
+    known = {}
+
+    pattern = re.compile(
+        r'\bstd::string\s+(?P<name>[A-Za-z_]\w*)\s*=\s*(?P<literal>"[^"]*")\s*;'
+    )
+
+    def repl(match):
+        name = match.group('name')
+        literal = match.group('literal')
+        known[name] = literal[1:-1]
+        return 'const char* %s = %s;' % (name, literal)
+
+    rewritten = pattern.sub(repl, code)
+    return rewritten, known
+
+
+def rewrite_string_starts_ends_with(code, known_strings):
+    starts_pattern = re.compile(
+        r'(?P<obj>\b[A-Za-z_]\w*)\.starts_with\s*\((?P<arg>"[^"]*")\)'
+    )
+
+    ends_pattern = re.compile(
+        r'(?P<obj>\b[A-Za-z_]\w*)\.ends_with\s*\((?P<arg>"[^"]*")\)'
+    )
+
+    def starts_repl(match):
+        obj = match.group('obj')
+        prefix = match.group('arg')[1:-1]
+
+        if obj not in known_strings:
+            return match.group(0)
+
+        text_value = known_strings[obj]
+        return 'true' if text_value.startswith(prefix) else 'false'
+
+    def ends_repl(match):
+        obj = match.group('obj')
+        suffix = match.group('arg')[1:-1]
+
+        if obj not in known_strings:
+            return match.group(0)
+
+        text_value = known_strings[obj]
+        return 'true' if text_value.endswith(suffix) else 'false'
+
+    code = starts_pattern.sub(starts_repl, code)
+    code = ends_pattern.sub(ends_repl, code)
+
+    return code
+
+
+def rewrite_numbers(code):
+    code = code.replace('#include <numbers>', '// cpp-tutor: <numbers> constants rewritten for local visualizer')
+
+    replacements = {
+        'std::numbers::pi_v<double>': '3.14159265358979323846264338327950288',
+        'std::numbers::pi': '3.14159265358979323846264338327950288',
+        'std::numbers::e_v<double>': '2.7182818284590452353602874713527',
+        'std::numbers::e': '2.7182818284590452353602874713527',
+        'std::numbers::sqrt2_v<double>': '1.4142135623730950488016887242097',
+        'std::numbers::sqrt2': '1.4142135623730950488016887242097',
+    }
+
+    for old, new in replacements.items():
+        code = code.replace(old, new)
+
+    return code
+
+
+def rewrite_ssize(code):
+    return re.sub(
+        r'std::ssize\s*\(\s*(?P<c>[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*\)',
+        lambda m: 'static_cast<long long>(%s.size())' % m.group('c'),
+        code
+    )
+
+
+def rewrite_safe_ranges(code):
+    code = code.replace('#include <ranges>', '// cpp-tutor: <ranges> rewritten for local visualizer')
+
+    code = re.sub(
+        r'std::ranges::sort\s*\(\s*(?P<c>[A-Za-z_]\w*)\s*\)',
+        lambda m: 'std::sort(%s.begin(), %s.end())' % (m.group('c'), m.group('c')),
+        code
+    )
+
+    code = re.sub(
+        r'std::ranges::reverse\s*\(\s*(?P<c>[A-Za-z_]\w*)\s*\)',
+        lambda m: 'std::reverse(%s.begin(), %s.end())' % (m.group('c'), m.group('c')),
+        code
+    )
+
+    return code
+
+
+def rewrite_structured_binding_for_loops(code):
     lines = code.splitlines(True)
     out = []
     pending = None
@@ -107,41 +215,34 @@ def rewrite_standalone_structured_bindings_safely(code):
     return ''.join(out)
 
 
-def rewrite_simple_ranges_algorithms(code):
-    code = code.replace('#include <ranges>', '// cpp-tutor: <ranges> rewritten for local visualizer')
+def add_needed_includes(original_code, rewritten_code):
+    prefix = ''
 
-    replacements = [
-        (
-            re.compile(r'std::ranges::sort\s*\(\s*(?P<c>[A-Za-z_]\w*)\s*\)'),
-            lambda m: 'std::sort(%s.begin(), %s.end())' % (m.group('c'), m.group('c'))
-        ),
-        (
-            re.compile(r'std::ranges::reverse\s*\(\s*(?P<c>[A-Za-z_]\w*)\s*\)'),
-            lambda m: 'std::reverse(%s.begin(), %s.end())' % (m.group('c'), m.group('c'))
-        ),
-        (
-            re.compile(r'std::ranges::find\s*\(\s*(?P<c>[A-Za-z_]\w*)\s*,\s*(?P<v>[^)\n;]+)\)'),
-            lambda m: 'std::find(%s.begin(), %s.end(), %s)' % (m.group('c'), m.group('c'), m.group('v'))
-        ),
-        (
-            re.compile(r'std::ranges::count\s*\(\s*(?P<c>[A-Za-z_]\w*)\s*,\s*(?P<v>[^)\n;]+)\)'),
-            lambda m: 'std::count(%s.begin(), %s.end(), %s)' % (m.group('c'), m.group('c'), m.group('v'))
-        ),
-    ]
+    if ('auto [' in original_code or 'const auto [' in original_code or 'auto& [' in original_code or 'auto&& [' in original_code):
+        if '#include <tuple>' not in rewritten_code:
+            prefix += '#include <tuple>\n'
 
-    rewritten = code
+    if ('std::ranges::sort' in original_code or 'std::ranges::reverse' in original_code):
+        if '#include <algorithm>' not in rewritten_code:
+            prefix += '#include <algorithm>\n'
 
-    for pattern, repl in replacements:
-        rewritten = pattern.sub(repl, rewritten)
-
-    return rewritten
+    return prefix + rewritten_code
 
 
 def rewrite_code(code):
     rewritten = code
-    rewritten = rewrite_range_for_structured_bindings(rewritten)
+
+    rewritten = rewrite_numbers(rewritten)
+    rewritten = rewrite_ssize(rewritten)
+
+    rewritten, known_strings = rewrite_simple_string_literals(rewritten)
+    rewritten = rewrite_string_starts_ends_with(rewritten, known_strings)
+
+    rewritten = rewrite_structured_binding_for_loops(rewritten)
     rewritten = rewrite_standalone_structured_bindings_safely(rewritten)
-    rewritten = rewrite_simple_ranges_algorithms(rewritten)
+    rewritten = rewrite_safe_ranges(rewritten)
+    rewritten = add_needed_includes(code, rewritten)
+
     return rewritten
 
 
