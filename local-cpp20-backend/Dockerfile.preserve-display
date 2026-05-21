@@ -1,0 +1,98 @@
+FROM cpp-tutor/opt-cpp-backend-cpp20:local
+
+RUN cat > /tmp/opt-cpp-backend/run_cpp_backend_cpp20_wrapper.py <<'PY'
+#!/usr/bin/env python
+import json
+import re
+import sys
+
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
+
+
+def rewrite_structured_binding_for_loops(code):
+    lines = code.splitlines(True)
+    out = []
+    pending = None
+    counter = 0
+
+    pattern = re.compile(
+        r'^(?P<indent>\s*)for\s*\(\s*'
+        r'(?P<decl>(?:const\s+)?auto(?:\s*(?:&|&&))?)\s*'
+        r'\[\s*(?P<a>[A-Za-z_]\w*)\s*,\s*(?P<b>[A-Za-z_]\w*)\s*\]\s*'
+        r':\s*(?P<expr>.*?)\s*\)\s*(?P<brace>\{?)\s*(?P<tail>//.*)?(?P<nl>\r?\n?)$'
+    )
+
+    for line in lines:
+        match = pattern.match(line)
+
+        if match:
+            counter += 1
+            indent = match.group('indent')
+            a = match.group('a')
+            b = match.group('b')
+            expr = match.group('expr')
+            brace = match.group('brace')
+            tail = match.group('tail') or ''
+            nl = match.group('nl') or '\n'
+            temp = '__cpp_tutor_sb_%d' % counter
+
+            if brace:
+                out.append(
+                    '%sfor (auto&& %s : %s) { auto %s = std::get<0>(%s); auto %s = std::get<1>(%s);%s%s'
+                    % (indent, temp, expr, a, temp, b, temp, (' ' + tail) if tail else '', nl)
+                )
+            else:
+                out.append(
+                    '%sfor (auto&& %s : %s)%s%s'
+                    % (indent, temp, expr, (' ' + tail) if tail else '', nl)
+                )
+                pending = (indent, a, b, temp)
+
+            continue
+
+        if pending and line.strip().startswith('{'):
+            indent, a, b, temp = pending
+            nl = '\n' if line.endswith('\n') else ''
+            out.append(
+                '%s{ auto %s = std::get<0>(%s); auto %s = std::get<1>(%s);%s'
+                % (indent, a, temp, b, temp, nl)
+            )
+            pending = None
+            continue
+
+        out.append(line)
+
+    return ''.join(out)
+
+
+original_code = sys.argv[1]
+rewritten_code = rewrite_structured_binding_for_loops(original_code)
+
+sys.argv[1] = rewritten_code
+
+old_stdout = sys.stdout
+buffer = StringIO()
+sys.stdout = buffer
+
+try:
+    execfile('/tmp/opt-cpp-backend/run_cpp_backend.py')
+finally:
+    sys.stdout = old_stdout
+
+output = buffer.getvalue()
+
+try:
+    data = json.loads(output)
+
+    if rewritten_code != original_code:
+        data['code'] = original_code
+
+    sys.stdout.write(json.dumps(data))
+except Exception:
+    sys.stdout.write(output)
+PY
+
+RUN chmod +x /tmp/opt-cpp-backend/run_cpp_backend_cpp20_wrapper.py
