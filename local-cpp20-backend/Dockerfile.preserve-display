@@ -12,7 +12,11 @@ except ImportError:
     from io import StringIO
 
 
-def rewrite_structured_binding_for_loops(code):
+def split_names(names):
+    return [name.strip() for name in names.split(',') if name.strip()]
+
+
+def rewrite_range_for_structured_bindings(code):
     lines = code.splitlines(True)
     out = []
     pending = None
@@ -21,7 +25,7 @@ def rewrite_structured_binding_for_loops(code):
     pattern = re.compile(
         r'^(?P<indent>\s*)for\s*\(\s*'
         r'(?P<decl>(?:const\s+)?auto(?:\s*(?:&|&&))?)\s*'
-        r'\[\s*(?P<a>[A-Za-z_]\w*)\s*,\s*(?P<b>[A-Za-z_]\w*)\s*\]\s*'
+        r'\[\s*(?P<names>[A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)+)\s*\]\s*'
         r':\s*(?P<expr>.*?)\s*\)\s*(?P<brace>\{?)\s*(?P<tail>//.*)?(?P<nl>\r?\n?)$'
     )
 
@@ -31,35 +35,31 @@ def rewrite_structured_binding_for_loops(code):
         if match:
             counter += 1
             indent = match.group('indent')
-            a = match.group('a')
-            b = match.group('b')
+            names = split_names(match.group('names'))
             expr = match.group('expr')
             brace = match.group('brace')
             tail = match.group('tail') or ''
             nl = match.group('nl') or '\n'
             temp = '__cpp_tutor_sb_%d' % counter
 
+            getters = ' '.join(
+                ['auto %s = std::get<%d>(%s);' % (name, i, temp) for i, name in enumerate(names)]
+            )
+
             if brace:
-                out.append(
-                    '%sfor (auto&& %s : %s) { auto %s = std::get<0>(%s); auto %s = std::get<1>(%s);%s%s'
-                    % (indent, temp, expr, a, temp, b, temp, (' ' + tail) if tail else '', nl)
-                )
+                out.append('%sfor (auto&& %s : %s) { %s%s%s' %
+                           (indent, temp, expr, getters, (' ' + tail) if tail else '', nl))
             else:
-                out.append(
-                    '%sfor (auto&& %s : %s)%s%s'
-                    % (indent, temp, expr, (' ' + tail) if tail else '', nl)
-                )
-                pending = (indent, a, b, temp)
+                out.append('%sfor (auto&& %s : %s)%s%s' %
+                           (indent, temp, expr, (' ' + tail) if tail else '', nl))
+                pending = (indent, getters)
 
             continue
 
         if pending and line.strip().startswith('{'):
-            indent, a, b, temp = pending
+            indent, getters = pending
             nl = '\n' if line.endswith('\n') else ''
-            out.append(
-                '%s{ auto %s = std::get<0>(%s); auto %s = std::get<1>(%s);%s'
-                % (indent, a, temp, b, temp, nl)
-            )
+            out.append('%s{ %s%s' % (indent, getters, nl))
             pending = None
             continue
 
@@ -68,8 +68,85 @@ def rewrite_structured_binding_for_loops(code):
     return ''.join(out)
 
 
+def rewrite_standalone_structured_bindings_safely(code):
+    lines = code.splitlines(True)
+    out = []
+
+    pattern = re.compile(
+        r'^(?P<indent>\s*)'
+        r'(?P<decl>(?:const\s+)?auto(?:\s*(?:&|&&))?)\s*'
+        r'\[\s*(?P<names>[A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)+)\s*\]\s*'
+        r'=\s*(?P<expr>.*?);\s*(?P<tail>//.*)?(?P<nl>\r?\n?)$'
+    )
+
+    for line in lines:
+        match = pattern.match(line)
+
+        if not match:
+            out.append(line)
+            continue
+
+        indent = match.group('indent')
+        names = split_names(match.group('names'))
+        expr = match.group('expr')
+        tail = match.group('tail') or ''
+        nl = match.group('nl') or '\n'
+
+        pieces = [
+            'auto %s = std::get<%d>(%s);' % (name, i, expr)
+            for i, name in enumerate(names)
+        ]
+
+        out.append('%s%s%s%s' % (
+            indent,
+            ' '.join(pieces),
+            (' ' + tail) if tail else '',
+            nl
+        ))
+
+    return ''.join(out)
+
+
+def rewrite_simple_ranges_algorithms(code):
+    code = code.replace('#include <ranges>', '// cpp-tutor: <ranges> rewritten for local visualizer')
+
+    replacements = [
+        (
+            re.compile(r'std::ranges::sort\s*\(\s*(?P<c>[A-Za-z_]\w*)\s*\)'),
+            lambda m: 'std::sort(%s.begin(), %s.end())' % (m.group('c'), m.group('c'))
+        ),
+        (
+            re.compile(r'std::ranges::reverse\s*\(\s*(?P<c>[A-Za-z_]\w*)\s*\)'),
+            lambda m: 'std::reverse(%s.begin(), %s.end())' % (m.group('c'), m.group('c'))
+        ),
+        (
+            re.compile(r'std::ranges::find\s*\(\s*(?P<c>[A-Za-z_]\w*)\s*,\s*(?P<v>[^)\n;]+)\)'),
+            lambda m: 'std::find(%s.begin(), %s.end(), %s)' % (m.group('c'), m.group('c'), m.group('v'))
+        ),
+        (
+            re.compile(r'std::ranges::count\s*\(\s*(?P<c>[A-Za-z_]\w*)\s*,\s*(?P<v>[^)\n;]+)\)'),
+            lambda m: 'std::count(%s.begin(), %s.end(), %s)' % (m.group('c'), m.group('c'), m.group('v'))
+        ),
+    ]
+
+    rewritten = code
+
+    for pattern, repl in replacements:
+        rewritten = pattern.sub(repl, rewritten)
+
+    return rewritten
+
+
+def rewrite_code(code):
+    rewritten = code
+    rewritten = rewrite_range_for_structured_bindings(rewritten)
+    rewritten = rewrite_standalone_structured_bindings_safely(rewritten)
+    rewritten = rewrite_simple_ranges_algorithms(rewritten)
+    return rewritten
+
+
 original_code = sys.argv[1]
-rewritten_code = rewrite_structured_binding_for_loops(original_code)
+rewritten_code = rewrite_code(original_code)
 
 sys.argv[1] = rewritten_code
 
